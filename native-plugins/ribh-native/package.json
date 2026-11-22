@@ -1,0 +1,11 @@
+{
+  "name": "ribh-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS versions of the app's custom native plugins (DhikrReminder, MicrophonePermission)",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}

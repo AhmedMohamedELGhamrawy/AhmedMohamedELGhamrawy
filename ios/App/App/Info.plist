@@ -26,6 +26,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>يستخدم التطبيق الميكروفون لتتمكن من قول الذكر بصوتك والتعرف عليه.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>يستخدم التطبيق التعرف على الكلام لمعرفة الذكر الذي تقوله بصوتك.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
