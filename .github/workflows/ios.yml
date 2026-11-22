@@ -1,0 +1,107 @@
+name: iOS Build
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to App Store Connect (TestFlight)"
+        type: boolean
+        default: true
+
+jobs:
+  # Builds for the simulator on every push - no Apple account needed.
+  # Its only purpose is to confirm the project compiles.
+  check:
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx cap sync ios
+      - name: Build for simulator
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tail -n 40
+
+  # Run manually from the Actions tab after adding the secrets (see README).
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx cap sync ios
+
+      - name: Check secrets
+        run: |
+          for v in ASC_KEY_ID ASC_ISSUER_ID TEAM_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v - see README"; exit 1; fi
+          done
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "KEY_PATH=$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Archive
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive
+
+      - name: Export and upload
+        working-directory: ios/App
+        run: |
+          DEST=export
+          if [ "${{ inputs.upload }}" = "true" ]; then DEST=upload; fi
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>$DEST</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/out" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.upload }}
+        with:
+          name: ribh-albay-ipa
+          path: ${{ runner.temp }}/out/*.ipa

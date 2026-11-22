@@ -1,0 +1,9 @@
+{
+  "appId": "com.elghamrawy.myapp",
+  "appName": "ربح البيع",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#F5F1E8"
+  }
+}
