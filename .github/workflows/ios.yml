@@ -10,6 +10,10 @@ on:
         type: boolean
         default: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Builds for the simulator on every push - no Apple account needed.
   # Its only purpose is to confirm the project compiles.
